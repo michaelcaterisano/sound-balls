@@ -19,12 +19,27 @@
     }
     #score { top: 10px; }
     #chordInfo { top: 50px; }
+    #instructions {
+      color: white;
+      text-align: center;
+      font-size: 16px; width: 300px; padding: 10px; background: rgba(0, 0, 0, 0.5);
+      margin: 0 auto;
+    }
   </style>
 </head>
 <body>
   <button id="start-button">Start</button>
   <div id="score">Score: 0</div>
   <div id="chordInfo"></div>
+  <div id="instructions">
+    <p>Instructions:</p>
+    <p>Use the left and right arrow keys to move the green cannon.</p>
+    <p>Press the spacebar to fire a projectile.</p>
+    <p>Collect the notes in the correct order to complete the chord progression.</p>
+    <p>Wrong notes will be respawned at the top.</p>
+    <p>Collecting notes quickly in succession will increase your combo multiplier.</p>
+    <p>Complete all chords to win!</p>
+  </div>
   <script>
     let audioContext, boundaries = [], score = 0;
     const scoreEl = document.getElementById('score');
@@ -76,6 +91,8 @@
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         document.getElementById('start-button').remove();
+        // make instructions barely visible
+        document.getElementById('instructions').remove();
         scoreEl.style.display = 'block';
         chordInfoEl.style.display = 'block';
         updateChordInfo();
