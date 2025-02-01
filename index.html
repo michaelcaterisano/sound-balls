@@ -224,7 +224,7 @@
         });
 
         // Clamp velocities for note balls (max speed 15).
-        const maxSpeed = 15;
+        const maxSpeed = 25;
         noteBalls.forEach(nb => {
           let vel = nb.body.velocity;
           let currentSpeed = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
