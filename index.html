@@ -6,24 +6,42 @@
   <title>Music Theory Shooter</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
   <style>
-    body { margin: 0; overflow: hidden; background: #000000; }
-    canvas { display: block; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000000;
+    }
+    canvas {
+      display: block;
+    }
     #start-button {
-      position: absolute; top: 50%; left: 50%;
+      position: absolute;
+      top: 50%;
+      left: 50%;
       transform: translate(-50%, -50%);
-      padding: 20px 40px; font-size: 24px;
-      background: #4CAF50; color: white; border: none; border-radius: 10px; cursor: pointer;
-    }
-    #score, #chordInfo {
-      position: absolute; left: 10px; font-size: 24px; color: white; display: none;
-    }
-    #score { top: 10px; }
-    #chordInfo { top: 50px; }
-    #instructions {
+      padding: 20px 40px;
+      font-size: 24px;
+      background: #4CAF50;
       color: white;
-      text-align: center;
-      font-size: 16px; width: 300px; padding: 10px; background: rgba(0, 0, 0, 0.5);
-      margin: 0 auto;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      z-index: 10;
+    }
+    /* Score and chord info display */
+    #score, #chordInfo {
+      position: absolute;
+      left: 10px;
+      font-size: 24px;
+      color: white;
+      display: none;
+      z-index: 10;
+    }
+    #score {
+      top: 10px;
+    }
+    #chordInfo {
+      top: 50px;
     }
   </style>
 </head>
@@ -31,15 +49,6 @@
   <button id="start-button">Start</button>
   <div id="score">Score: 0</div>
   <div id="chordInfo"></div>
-  <div id="instructions">
-    <p>Instructions:</p>
-    <p>Use the left and right arrow keys to move the green cannon.</p>
-    <p>Press the spacebar to fire a projectile.</p>
-    <p>Collect the notes in the correct order to complete the chord progression.</p>
-    <p>Wrong notes will be respawned at the top.</p>
-    <p>Collecting notes quickly in succession will increase your combo multiplier.</p>
-    <p>Complete all chords to win!</p>
-  </div>
   <script>
     let audioContext, boundaries = [], score = 0;
     const scoreEl = document.getElementById('score');
@@ -67,7 +76,8 @@
       chordInfoEl.innerText =
         currentChord.name +
         " – Next: " + currentChord.notes[currentChord.collected.length] +
-        " | Collected: " + currentChord.collected.join(", ")
+        " | Collected: " + currentChord.collected.join(", ") +
+        " (Combo: x" + comboMultiplier + ")";
     }
 
     function playTone(freq, duration = 0.1, vol = 0.1, type = 'sine') {
@@ -91,8 +101,6 @@
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         document.getElementById('start-button').remove();
-        // make instructions barely visible
-        document.getElementById('instructions').remove();
         scoreEl.style.display = 'block';
         chordInfoEl.style.display = 'block';
         updateChordInfo();
@@ -105,7 +113,6 @@
     function startGame() {
       const { Engine, Render, Runner, World, Bodies, Events, Body } = Matter;
       const engine = Engine.create();
-      // No gravity for our top-down shooter.
       engine.world.gravity.x = 0;
       engine.world.gravity.y = 0;
       const world = engine.world;
@@ -146,7 +153,6 @@
           this.body.note = note;
           this.body.chordIndex = chordIndex;
           World.add(world, this.body);
-          // Set an initial velocity: mostly downward with a slight horizontal component.
           Body.setVelocity(this.body, { x: Math.random() * 2 - 1, y: Math.random() * 4 + 3 });
         }
         playSound(vol = 0.1) {
@@ -157,7 +163,6 @@
       // Projectile class: fired by the player shooter.
       class Projectile {
         constructor(x, y, velocity) {
-          // Projectiles have zero restitution so they don't bounce.
           this.body = Bodies.circle(x, y, 5, { restitution: 0, friction: 0, frictionAir: 0, render: { fillStyle: 'yellow' } });
           this.body.isProjectile = true;
           World.add(world, this.body);
@@ -172,7 +177,7 @@
 
       let projectiles = [];
       let noteBalls = [];
-
+      
       // Spawn note balls for all chords; they appear in the top quarter.
       function spawnAllNoteBalls() {
         noteBalls = [];
@@ -182,7 +187,7 @@
             const margin = 50;
             const x = margin + Math.random() * (window.innerWidth - margin * 2);
             const y = margin + Math.random() * (window.innerHeight/4 - margin);
-            let nb = new NoteBall(x, y, 30, note, c);
+            let nb = new NoteBall(x, y, 20, note, c);
             noteBalls.push(nb);
           });
         }
@@ -200,28 +205,50 @@
         });
       });
 
-      // Player movement: horizontal movement via left/right arrow keys.
-      const keys = { ArrowLeft: false, ArrowRight: false };
-      document.addEventListener('keydown', e => {
-        if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
-        // Fire projectile on spacebar.
-        if (e.code === "Space") {
+      // Determine if the browser is mobile.
+      const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+
+      // Desktop controls.
+      if (!isMobile) {
+        const keys = { ArrowLeft: false, ArrowRight: false };
+        document.addEventListener('keydown', e => {
+          if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+          if (e.code === "Space") {
+            const projSpeed = 15;
+            const projVelocity = { x: 0, y: -projSpeed };
+            const proj = new Projectile(player.position.x, player.position.y - playerHeight/2, projVelocity);
+            projectiles.push(proj);
+          }
+        });
+        document.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+        Events.on(engine, 'beforeUpdate', () => {
+          let vx = 0, speed = 10;
+          if (keys.ArrowLeft) vx -= speed;
+          if (keys.ArrowRight) vx += speed;
+          Body.setPosition(player, { x: Math.max(playerWidth/2, Math.min(player.position.x + vx, window.innerWidth - playerWidth/2)), y: player.position.y });
+        });
+      } else {
+        // Mobile controls:
+        // Use device orientation (gamma) to control horizontal position.
+        window.addEventListener('deviceorientation', (e) => {
+          if (e.gamma != null) {
+            // Map gamma from -45 to +45 degrees to the screen width.
+            let desiredX = (window.innerWidth / 2) + (e.gamma / 45) * (window.innerWidth / 2);
+            Body.setPosition(player, { x: Math.max(playerWidth/2, Math.min(desiredX, window.innerWidth - playerWidth/2)), y: player.position.y });
+          }
+        });
+        // Fire a projectile on any touch.
+        document.addEventListener('touchstart', function(e) {
+          e.preventDefault();
           const projSpeed = 15;
           const projVelocity = { x: 0, y: -projSpeed };
           const proj = new Projectile(player.position.x, player.position.y - playerHeight/2, projVelocity);
           projectiles.push(proj);
-        }
-      });
-      document.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+        }, { passive: false });
+      }
 
       // Update loop.
       Events.on(engine, 'beforeUpdate', () => {
-        // Move player horizontally.
-        let vx = 0, speed = 10;
-        if (keys.ArrowLeft) vx -= speed;
-        if (keys.ArrowRight) vx += speed;
-        Body.setPosition(player, { x: Math.max(playerWidth/2, Math.min(player.position.x + vx, window.innerWidth - playerWidth/2)), y: player.position.y });
-
         // Remove projectiles that have moved off the top.
         projectiles.forEach((proj, index) => {
           if (proj.body.position.y < -20) {
@@ -229,7 +256,6 @@
             projectiles.splice(index, 1);
           }
         });
-
         // For note balls: if any fall off the bottom, respawn them at the top.
         noteBalls.forEach(nb => {
           if (nb.body.position.y > window.innerHeight + 20) {
@@ -238,9 +264,8 @@
             Body.setVelocity(nb.body, { x: Math.random() * 2 - 1, y: Math.random() * 4 + 3 });
           }
         });
-
         // Clamp velocities for note balls (max speed 15).
-        const maxSpeed = 25;
+        const maxSpeed = 15;
         noteBalls.forEach(nb => {
           let vel = nb.body.velocity;
           let currentSpeed = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
@@ -287,7 +312,7 @@
               }
             } else {
               // Wrong note: subtract points, play negative tone, remove both bodies.
-              score = score - 5;
+              score = Math.max(score - 5, 0);
               scoreEl.innerText = 'Score: ' + score;
               playTone(100, 0.2, 0.2);
               const wrongChordIndex = noteBallBody.chordIndex;
@@ -301,10 +326,10 @@
                   const margin = 50;
                   const x = margin + Math.random() * (window.innerWidth - margin * 2);
                   const y = margin;
-                  let nb = new NoteBall(x, y, 30, wrongNote, wrongChordIndex);
+                  let nb = new NoteBall(x, y, 20, wrongNote, wrongChordIndex);
                   noteBalls.push(nb);
                 }
-              }, 100);
+              }, 2000);
             }
           }
           // Remove projectile if it collides with any static boundary.
