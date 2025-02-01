@@ -52,8 +52,7 @@
       chordInfoEl.innerText =
         currentChord.name +
         " – Next: " + currentChord.notes[currentChord.collected.length] +
-        " | Collected: " + currentChord.collected.join(", ") +
-        " (Combo: x" + comboMultiplier + ")";
+        " | Collected: " + currentChord.collected.join(", ")
     }
 
     function playTone(freq, duration = 0.1, vol = 0.1, type = 'sine') {
@@ -166,7 +165,7 @@
             const margin = 50;
             const x = margin + Math.random() * (window.innerWidth - margin * 2);
             const y = margin + Math.random() * (window.innerHeight/4 - margin);
-            let nb = new NoteBall(x, y, 20, note, c);
+            let nb = new NoteBall(x, y, 30, note, c);
             noteBalls.push(nb);
           });
         }
@@ -271,7 +270,7 @@
               }
             } else {
               // Wrong note: subtract points, play negative tone, remove both bodies.
-              score = Math.max(score - 5, 0);
+              score = score - 5;
               scoreEl.innerText = 'Score: ' + score;
               playTone(100, 0.2, 0.2);
               const wrongChordIndex = noteBallBody.chordIndex;
@@ -285,10 +284,10 @@
                   const margin = 50;
                   const x = margin + Math.random() * (window.innerWidth - margin * 2);
                   const y = margin;
-                  let nb = new NoteBall(x, y, 20, wrongNote, wrongChordIndex);
+                  let nb = new NoteBall(x, y, 30, wrongNote, wrongChordIndex);
                   noteBalls.push(nb);
                 }
-              }, 2000);
+              }, 100);
             }
           }
           // Remove projectile if it collides with any static boundary.
