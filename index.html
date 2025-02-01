@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Music Theory Order Challenge</title>
+  <title>Music Theory Shooter</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
   <style>
-    body { margin: 0; overflow: hidden; background: #f0f0f0; }
+    body { margin: 0; overflow: hidden; background: #000000; }
     canvas { display: block; }
     #start-button {
       position: absolute; top: 50%; left: 50%;
@@ -15,7 +15,7 @@
       background: #4CAF50; color: white; border: none; border-radius: 10px; cursor: pointer;
     }
     #score, #chordInfo {
-      position: absolute; left: 10px; font-size: 24px; color: black; display: none;
+      position: absolute; left: 10px; font-size: 24px; color: white; display: none;
     }
     #score { top: 10px; }
     #chordInfo { top: 50px; }
@@ -48,7 +48,6 @@
     let currentChord = chords[currentChordIndex];
 
     let comboMultiplier = 1, lastCollectTime = 0, comboInterval = 2000;
-
     function updateChordInfo() {
       chordInfoEl.innerText =
         currentChord.name +
@@ -69,10 +68,9 @@
       osc.stop(audioContext.currentTime + duration);
     }
 
-    // Flash the background briefly.
     function flashBackground(color, duration) {
       document.body.style.background = color;
-      setTimeout(() => { document.body.style.background = "#f0f0f0"; }, duration);
+      setTimeout(() => { document.body.style.background = "#000000"; }, duration);
     }
 
     function initializeAudio() {
@@ -85,14 +83,13 @@
         startGame();
       }
     }
-
     document.getElementById('start-button').addEventListener('click', initializeAudio);
     document.getElementById('start-button').addEventListener('touchstart', initializeAudio);
 
     function startGame() {
       const { Engine, Render, Runner, World, Bodies, Events, Body } = Matter;
       const engine = Engine.create();
-      // Disable gravity:
+      // No gravity for our top-down shooter.
       engine.world.gravity.x = 0;
       engine.world.gravity.y = 0;
       const world = engine.world;
@@ -103,52 +100,64 @@
           width: window.innerWidth,
           height: window.innerHeight,
           wireframes: false,
-          background: '#f0f0f0'
+          background: '#000000'
         }
       });
       Render.run(render);
       const runner = Runner.create();
       Runner.run(runner, engine);
 
+      // Create boundaries with label "Boundary".
       function createBoundaries() {
         const thickness = 100;
         return [
-          Bodies.rectangle(window.innerWidth/2, -thickness/2, window.innerWidth, thickness, { isStatic: true, render: { visible: false } }),
-          Bodies.rectangle(window.innerWidth/2, window.innerHeight+thickness/2, window.innerWidth, thickness, { isStatic: true, render: { visible: false } }),
-          Bodies.rectangle(-thickness/2, window.innerHeight/2, thickness, window.innerHeight, { isStatic: true, render: { visible: false } }),
-          Bodies.rectangle(window.innerWidth+thickness/2, window.innerHeight/2, thickness, window.innerHeight, { isStatic: true, render: { visible: false } })
+          Bodies.rectangle(window.innerWidth/2, -thickness/2, window.innerWidth, thickness, { isStatic: true, label: "Boundary", render: { visible: false } }),
+          Bodies.rectangle(window.innerWidth/2, window.innerHeight+thickness/2, window.innerWidth, thickness, { isStatic: true, label: "Boundary", render: { visible: false } }),
+          Bodies.rectangle(-thickness/2, window.innerHeight/2, thickness, window.innerHeight, { isStatic: true, label: "Boundary", render: { visible: false } }),
+          Bodies.rectangle(window.innerWidth+thickness/2, window.innerHeight/2, thickness, window.innerHeight, { isStatic: true, label: "Boundary", render: { visible: false } })
         ];
       }
-
       boundaries = createBoundaries();
       World.add(world, boundaries);
 
-      // NoteBall class: note balls have no gravity and are perfectly elastic.
-      // Now we assign an initial random velocity so they start moving.
+      // NoteBall class – all note balls use the same color (blue).
       class NoteBall {
-        constructor(x, y, r, note, color, chordIndex) {
+        constructor(x, y, r, note, chordIndex) {
           this.note = note;
           this.chordIndex = chordIndex;
-          this.body = Bodies.circle(x, y, r, { restitution: 1.0, friction: 0, frictionAir: 0, render: { fillStyle: color } });
+          this.body = Bodies.circle(x, y, r, { restitution: 1.0, friction: 0, frictionAir: 0, render: { fillStyle: 'blue' } });
           this.body.isNoteBall = true;
           this.body.note = note;
           this.body.chordIndex = chordIndex;
           World.add(world, this.body);
-          // Set an initial random velocity (range -2 to 2 for each component)
-          Body.setVelocity(this.body, { x: Math.random() * 4 - 2, y: Math.random() * 4 - 2 });
+          // Set an initial velocity: mostly downward with a slight horizontal component.
+          Body.setVelocity(this.body, { x: Math.random() * 2 - 1, y: Math.random() * 4 + 3 });
         }
         playSound(vol = 0.1) {
           playTone(noteFrequencies[this.note], 0.1, vol);
         }
       }
 
-      // Player-controlled ball.
-      const playerBall = Bodies.circle(300, 300, 30, { restitution: 1.0, friction: 0, frictionAir: 0, render: { fillStyle: 'green' } });
-      World.add(world, playerBall);
+      // Projectile class: fired by the player shooter.
+      class Projectile {
+        constructor(x, y, velocity) {
+          // Projectiles have zero restitution so they don't bounce.
+          this.body = Bodies.circle(x, y, 5, { restitution: 0, friction: 0, frictionAir: 0, render: { fillStyle: 'yellow' } });
+          this.body.isProjectile = true;
+          World.add(world, this.body);
+          Body.setVelocity(this.body, velocity);
+        }
+      }
 
+      // Player shooter: a green cannon at the bottom center.
+      const playerWidth = 40, playerHeight = 20;
+      const player = Bodies.rectangle(window.innerWidth/2, window.innerHeight - 30, playerWidth, playerHeight, { isStatic: true, render: { fillStyle: 'green' } });
+      World.add(world, player);
+
+      let projectiles = [];
       let noteBalls = [];
 
-      // Spawn note balls for all chords in the progression.
+      // Spawn note balls for all chords; they appear in the top quarter.
       function spawnAllNoteBalls() {
         noteBalls = [];
         for (let c = 0; c < chords.length; c++) {
@@ -156,23 +165,18 @@
           chord.notes.forEach(note => {
             const margin = 50;
             const x = margin + Math.random() * (window.innerWidth - margin * 2);
-            const y = margin + Math.random() * (window.innerHeight - margin * 2);
-            let color;
-            if (c === 0) color = 'blue';
-            else if (c === 1) color = 'red';
-            else if (c === 2) color = 'purple';
-            let nb = new NoteBall(x, y, 20, note, color, c);
+            const y = margin + Math.random() * (window.innerHeight/4 - margin);
+            let nb = new NoteBall(x, y, 20, note, c);
             noteBalls.push(nb);
           });
         }
       }
-
       spawnAllNoteBalls();
 
       // Draw note labels on note balls.
       Events.on(render, 'afterRender', () => {
         const context = render.context;
-        context.fillStyle = "black";
+        context.fillStyle = "white";
         context.font = "16px Arial";
         noteBalls.forEach(nb => {
           const pos = nb.body.position;
@@ -180,21 +184,47 @@
         });
       });
 
-      const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
-      document.addEventListener('keydown', e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = true; });
+      // Player movement: horizontal movement via left/right arrow keys.
+      const keys = { ArrowLeft: false, ArrowRight: false };
+      document.addEventListener('keydown', e => {
+        if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+        // Fire projectile on spacebar.
+        if (e.code === "Space") {
+          const projSpeed = 15;
+          const projVelocity = { x: 0, y: -projSpeed };
+          const proj = new Projectile(player.position.x, player.position.y - playerHeight/2, projVelocity);
+          projectiles.push(proj);
+        }
+      });
       document.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
 
-      // Increase player speed.
+      // Update loop.
       Events.on(engine, 'beforeUpdate', () => {
-        let vx = 0, vy = 0, speed = 10;
+        // Move player horizontally.
+        let vx = 0, speed = 10;
         if (keys.ArrowLeft) vx -= speed;
         if (keys.ArrowRight) vx += speed;
-        if (keys.ArrowUp) vy -= speed;
-        if (keys.ArrowDown) vy += speed;
-        Body.setVelocity(playerBall, { x: vx, y: vy });
+        Body.setPosition(player, { x: Math.max(playerWidth/2, Math.min(player.position.x + vx, window.innerWidth - playerWidth/2)), y: player.position.y });
 
-        // Clamp velocity for each note ball to limit runaway acceleration.
-        const maxSpeed = 10;
+        // Remove projectiles that have moved off the top.
+        projectiles.forEach((proj, index) => {
+          if (proj.body.position.y < -20) {
+            World.remove(world, proj.body);
+            projectiles.splice(index, 1);
+          }
+        });
+
+        // For note balls: if any fall off the bottom, respawn them at the top.
+        noteBalls.forEach(nb => {
+          if (nb.body.position.y > window.innerHeight + 20) {
+            const margin = 50;
+            Body.setPosition(nb.body, { x: margin + Math.random() * (window.innerWidth - margin * 2), y: margin });
+            Body.setVelocity(nb.body, { x: Math.random() * 2 - 1, y: Math.random() * 4 + 3 });
+          }
+        });
+
+        // Clamp velocities for note balls (max speed 15).
+        const maxSpeed = 15;
         noteBalls.forEach(nb => {
           let vel = nb.body.velocity;
           let currentSpeed = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
@@ -209,14 +239,13 @@
       Events.on(engine, 'collisionStart', event => {
         event.pairs.forEach(pair => {
           const { bodyA, bodyB } = pair;
-          let noteBallBody = null;
-          if (bodyA.isNoteBall && bodyB === playerBall) { noteBallBody = bodyA; }
-          else if (bodyB.isNoteBall && bodyA === playerBall) { noteBallBody = bodyB; }
-          if (noteBallBody) {
+          // Handle projectile hitting a note ball.
+          if ((bodyA.isProjectile && bodyB.isNoteBall) || (bodyB.isProjectile && bodyA.isNoteBall)) {
+            let projectileBody = bodyA.isProjectile ? bodyA : bodyB;
+            let noteBallBody = bodyA.isNoteBall ? bodyA : bodyB;
             const collidedNote = noteBallBody.note;
             const ballChordIndex = noteBallBody.chordIndex;
             const requiredNote = currentChord.notes[currentChord.collected.length];
-            // Correct: ball belongs to the current chord and is the next required note.
             if (ballChordIndex === currentChordIndex && collidedNote === requiredNote) {
               let now = Date.now();
               if (now - lastCollectTime < comboInterval) { comboMultiplier++; }
@@ -229,7 +258,9 @@
               playTone(noteFrequencies[collidedNote], 0.2, 0.2);
               World.remove(world, noteBallBody);
               noteBalls = noteBalls.filter(nb => nb.body !== noteBallBody);
-              // If chord complete, flash background and advance chord.
+              // Remove the projectile as well.
+              World.remove(world, projectileBody);
+              projectiles = projectiles.filter(p => p.body !== projectileBody);
               if (currentChord.collected.length === currentChord.notes.length) {
                 flashBackground("lightyellow", 300);
                 currentChordIndex = (currentChordIndex + 1) % chords.length;
@@ -239,7 +270,7 @@
                 updateChordInfo();
               }
             } else {
-              // Wrong note: subtract points and play negative tone.
+              // Wrong note: subtract points, play negative tone, remove both bodies.
               score = Math.max(score - 5, 0);
               scoreEl.innerText = 'Score: ' + score;
               playTone(100, 0.2, 0.2);
@@ -247,21 +278,24 @@
               const wrongNote = noteBallBody.note;
               World.remove(world, noteBallBody);
               noteBalls = noteBalls.filter(nb => nb.body !== noteBallBody);
-              // Respawn the wrong ball after a delay if it hasn't been collected.
+              World.remove(world, projectileBody);
+              projectiles = projectiles.filter(p => p.body !== projectileBody);
               setTimeout(() => {
                 if (!chords[wrongChordIndex].collected.includes(wrongNote)) {
                   const margin = 50;
                   const x = margin + Math.random() * (window.innerWidth - margin * 2);
-                  const y = margin + Math.random() * (window.innerHeight - margin * 2);
-                  let color;
-                  if (wrongChordIndex === 0) color = 'blue';
-                  else if (wrongChordIndex === 1) color = 'red';
-                  else if (wrongChordIndex === 2) color = 'purple';
-                  let nb = new NoteBall(x, y, 20, wrongNote, color, wrongChordIndex);
+                  const y = margin;
+                  let nb = new NoteBall(x, y, 20, wrongNote, wrongChordIndex);
                   noteBalls.push(nb);
                 }
               }, 2000);
             }
+          }
+          // Remove projectile if it collides with any static boundary.
+          if ((bodyA.isProjectile && bodyB.label === "Boundary") || (bodyB.isProjectile && bodyA.label === "Boundary")) {
+            let projBody = bodyA.isProjectile ? bodyA : bodyB;
+            World.remove(world, projBody);
+            projectiles = projectiles.filter(p => p.body !== projBody);
           }
         });
       });
